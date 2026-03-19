@@ -24,6 +24,18 @@ interface SEOResult {
     bestPractices: number;
     seo: number;
   };
+  desktop?: {
+    performance: number;
+    accessibility: number;
+    bestPractices: number;
+    seo: number;
+  };
+  mobile?: {
+    performance: number;
+    accessibility: number;
+    bestPractices: number;
+    seo: number;
+  };
 }
 
 const actionPlans: Record<string, { recommendation: string; steps: string[] }> = {
@@ -287,8 +299,8 @@ function getStatusFromScore(score: number): "pass" | "warning" | "fail" {
   return "fail";
 }
 
-async function fetchPageSpeedInsights(url: string) {
-  const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&key=AIzaSyBWoi7GqNOw6gmS4W3K5T8mKf4WVq-UQYM&category=PERFORMANCE&category=ACCESSIBILITY&category=BEST_PRACTICES&category=SEO&strategy=DESKTOP`;
+async function fetchPageSpeedInsights(url: string, strategy: "DESKTOP" | "MOBILE" = "DESKTOP") {
+  const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&key=AIzaSyBWoi7GqNOw6gmS4W3K5T8mKf4WVq-UQYM&category=PERFORMANCE&category=ACCESSIBILITY&category=BEST_PRACTICES&category=SEO&strategy=${strategy}`;
   
   try {
     const response = await fetch(apiUrl);
@@ -330,7 +342,8 @@ async function fetchHTMLContent(url: string) {
   }
 }
 
-function analyzeHTML(html: string | null, url: string, pageSpeed: { performance: number; accessibility: number; bestPractices: number; seo: number } | null): SEOResult {
+function analyzeHTML(html: string | null, url: string, desktop: { performance: number; accessibility: number; bestPractices: number; seo: number } | null, mobile: { performance: number; accessibility: number; bestPractices: number; seo: number } | null, strategy: "desktop" | "mobile" = "desktop"): SEOResult {
+  const pageSpeed = strategy === "desktop" ? desktop : mobile;
   const isHttps = url.startsWith("https");
   
   let titleTag = null;
@@ -561,14 +574,22 @@ export async function POST(request: Request) {
       );
     }
 
-    const [pageSpeed, html] = await Promise.all([
-      fetchPageSpeedInsights(url).catch(() => null),
+    const [desktop, mobile, html] = await Promise.all([
+      fetchPageSpeedInsights(url, "DESKTOP").catch(() => null),
+      fetchPageSpeedInsights(url, "MOBILE").catch(() => null),
       fetchHTMLContent(url).catch(() => null)
     ]);
 
-    const result = analyzeHTML(html, url, pageSpeed);
+    const strategy = "desktop";
+    const pageSpeed = desktop;
 
-    return NextResponse.json(result);
+    const result = analyzeHTML(html, url, desktop, mobile, strategy);
+
+    return NextResponse.json({
+      ...result,
+      desktop,
+      mobile
+    });
   } catch (error) {
     console.error("Analysis error:", error);
     return NextResponse.json(

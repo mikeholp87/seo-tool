@@ -16,10 +16,19 @@ interface SEOCategory {
   checks: SEOCheck[];
 }
 
+interface PageSpeedData {
+  performance: number;
+  accessibility: number;
+  bestPractices: number;
+  seo: number;
+}
+
 interface SEOResult {
   url: string;
   overallScore: number;
   categories: SEOCategory[];
+  desktop?: PageSpeedData;
+  mobile?: PageSpeedData;
 }
 
 function ScoreCircle({ score }: { score: number }) {
@@ -178,6 +187,7 @@ export default function Home() {
   const [result, setResult] = useState<SEOResult | null>(null);
   const [error, setError] = useState("");
   const [expandedCategory, setExpandedCategory] = useState<number | null>(0);
+  const [activeTab, setActiveTab] = useState<"desktop" | "mobile">("desktop");
 
   const validateUrl = (input: string): string => {
     let processed = input.trim();
@@ -288,9 +298,48 @@ export default function Home() {
 
         {result && !loading && (
           <div className="animate-fade-in-up">
-            <div className="text-center mb-8">
+            <div className="text-center mb-6">
               <p className="text-[#A1A1AA] mb-4">Overall SEO Score</p>
               <ScoreCircle score={result.overallScore} />
+              
+              {result.desktop && result.mobile && (
+                <div className="flex justify-center gap-2 mt-4">
+                  <button
+                    onClick={() => setActiveTab("desktop")}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      activeTab === "desktop" 
+                        ? "bg-[#22D3EE] text-[#0A0A0F]" 
+                        : "bg-[#1A1A24] text-[#A1A1AA] hover:text-[#F4F4F5]"
+                    }`}
+                  >
+                    🖥️ Desktop
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("mobile")}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      activeTab === "mobile" 
+                        ? "bg-[#22D3EE] text-[#0A0A0F]" 
+                        : "bg-[#1A1A24] text-[#A1A1AA] hover:text-[#F4F4F5]"
+                    }`}
+                  >
+                    📱 Mobile
+                  </button>
+                </div>
+              )}
+              
+              {result.desktop && result.mobile && (
+                <div className="flex justify-center gap-6 mt-4 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-[#10B981]"></div>
+                    <span className="text-[#A1A1AA]">Desktop: {result.desktop.performance}%</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-[#8B5CF6]"></div>
+                    <span className="text-[#A1A1AA]">Mobile: {result.mobile.performance}%</span>
+                  </div>
+                </div>
+              )}
+              
               <p className="text-[#A1A1AA] text-sm mt-4">
                 Analysis for <span className="text-[#22D3EE]">{result.url}</span>
               </p>
@@ -312,6 +361,7 @@ export default function Home() {
               onClick={() => {
                 setResult(null);
                 setUrl("");
+                setActiveTab("desktop");
               }}
               className="w-full mt-8 py-4 border border-[#27272A] rounded-xl text-[#A1A1AA] hover:bg-[#1A1A24] hover:text-[#F4F4F5] transition-all"
             >
