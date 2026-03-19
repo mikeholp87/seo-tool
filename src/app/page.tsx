@@ -302,43 +302,45 @@ export default function Home() {
               <p className="text-[#A1A1AA] mb-4">Overall SEO Score</p>
               <ScoreCircle score={result.overallScore} />
               
-              {result.desktop && result.mobile && (
-                <div className="flex justify-center gap-2 mt-4">
-                  <button
-                    onClick={() => setActiveTab("desktop")}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      activeTab === "desktop" 
-                        ? "bg-[#22D3EE] text-[#0A0A0F]" 
-                        : "bg-[#1A1A24] text-[#A1A1AA] hover:text-[#F4F4F5]"
-                    }`}
-                  >
-                    🖥️ Desktop
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("mobile")}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      activeTab === "mobile" 
-                        ? "bg-[#22D3EE] text-[#0A0A0F]" 
-                        : "bg-[#1A1A24] text-[#A1A1AA] hover:text-[#F4F4F5]"
-                    }`}
-                  >
-                    📱 Mobile
-                  </button>
-                </div>
-              )}
+              <div className="flex justify-center gap-2 mt-4">
+                <button
+                  onClick={() => setActiveTab("desktop")}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === "desktop" 
+                      ? "bg-[#22D3EE] text-[#0A0A0F]" 
+                      : "bg-[#1A1A24] text-[#A1A1AA] hover:text-[#F4F4F5]"
+                  }`}
+                >
+                  🖥️ Desktop
+                </button>
+                <button
+                  onClick={() => setActiveTab("mobile")}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === "mobile" 
+                      ? "bg-[#22D3EE] text-[#0A0A0F]" 
+                      : "bg-[#1A1A24] text-[#A1A1AA] hover:text-[#F4F4F5]"
+                  }`}
+                >
+                  📱 Mobile
+                </button>
+              </div>
               
-              {result.desktop && result.mobile && (
+              {result.desktop || result.mobile ? (
                 <div className="flex justify-center gap-6 mt-4 text-xs">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-[#10B981]"></div>
-                    <span className="text-[#A1A1AA]">Desktop: {result.desktop.performance}%</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-[#8B5CF6]"></div>
-                    <span className="text-[#A1A1AA]">Mobile: {result.mobile.performance}%</span>
-                  </div>
+                  {result.desktop && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-[#10B981]"></div>
+                      <span className="text-[#A1A1AA]">Desktop: {result.desktop.performance}%</span>
+                    </div>
+                  )}
+                  {result.mobile && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-[#8B5CF6]"></div>
+                      <span className="text-[#A1A1AA]">Mobile: {result.mobile.performance}%</span>
+                    </div>
+                  )}
                 </div>
-              )}
+              ) : null}
               
               <p className="text-[#A1A1AA] text-sm mt-4">
                 Analysis for <span className="text-[#22D3EE]">{result.url}</span>
