@@ -17,13 +17,11 @@ interface SEOCategory {
 interface SEOResult {
   url: string;
   overallScore: number;
+  overallScoreDesktop?: number;
+  overallScoreMobile?: number;
   categories: SEOCategory[];
-  pageSpeed?: {
-    performance: number;
-    accessibility: number;
-    bestPractices: number;
-    seo: number;
-  };
+  categoriesDesktop?: SEOCategory[];
+  categoriesMobile?: SEOCategory[];
   desktop?: {
     performance: number;
     accessibility: number;
@@ -544,8 +542,7 @@ function analyzeHTML(html: string | null, url: string, desktop: { performance: n
   return {
     url,
     overallScore,
-    categories,
-    pageSpeed: pageSpeed || undefined
+    categories
   };
 }
 
@@ -580,13 +577,21 @@ export async function POST(request: Request) {
       fetchHTMLContent(url).catch(() => null)
     ]);
 
-    const strategy = "desktop";
-    const pageSpeed = desktop;
+    const desktopResult = analyzeHTML(html, url, desktop, mobile, "desktop");
+    const mobileResult = analyzeHTML(html, url, desktop, mobile, "mobile");
 
-    const result = analyzeHTML(html, url, desktop, mobile, strategy);
+    const overallScoreDesktop = desktopResult.overallScore;
+    const overallScoreMobile = mobileResult.overallScore;
+    const overallScore = Math.floor((overallScoreDesktop + overallScoreMobile) / 2);
 
     return NextResponse.json({
-      ...result,
+      url,
+      overallScore,
+      overallScoreDesktop,
+      overallScoreMobile,
+      categories: desktopResult.categories,
+      categoriesDesktop: desktopResult.categories,
+      categoriesMobile: mobileResult.categories,
       desktop,
       mobile
     });

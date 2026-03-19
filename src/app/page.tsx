@@ -26,7 +26,11 @@ interface PageSpeedData {
 interface SEOResult {
   url: string;
   overallScore: number;
+  overallScoreDesktop?: number;
+  overallScoreMobile?: number;
   categories: SEOCategory[];
+  categoriesDesktop?: SEOCategory[];
+  categoriesMobile?: SEOCategory[];
   desktop?: PageSpeedData;
   mobile?: PageSpeedData;
 }
@@ -299,8 +303,10 @@ export default function Home() {
         {result && !loading && (
           <div className="animate-fade-in-up">
             <div className="text-center mb-6">
-              <p className="text-[#A1A1AA] mb-4">Overall SEO Score</p>
-              <ScoreCircle score={result.overallScore} />
+              <p className="text-[#A1A1AA] mb-4">
+                {activeTab === "desktop" ? "Desktop" : "Mobile"} SEO Score
+              </p>
+              <ScoreCircle score={activeTab === "desktop" ? (result.overallScoreDesktop || result.overallScore) : (result.overallScoreMobile || result.overallScore)} />
               
               <div className="flex justify-center gap-2 mt-4">
                 <button
@@ -348,7 +354,7 @@ export default function Home() {
             </div>
 
             <div className="space-y-4">
-              {result.categories.map((category, index) => (
+              {(activeTab === "desktop" ? (result.categoriesDesktop || result.categories) : (result.categoriesMobile || result.categories)).map((category, index) => (
                 <CategoryCard
                   key={index}
                   category={category}
