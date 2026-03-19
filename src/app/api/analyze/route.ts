@@ -18,6 +18,12 @@ interface SEOResult {
   url: string;
   overallScore: number;
   categories: SEOCategory[];
+  pageSpeed?: {
+    performance: number;
+    accessibility: number;
+    bestPractices: number;
+    seo: number;
+  };
 }
 
 const actionPlans: Record<string, { recommendation: string; steps: string[] }> = {
@@ -275,216 +281,244 @@ const actionPlans: Record<string, { recommendation: string; steps: string[] }> =
   }
 };
 
-function generateSEOChecks(url: string): SEOResult {
-  const urlObj = new URL(url);
+function getStatusFromScore(score: number): "pass" | "warning" | "fail" {
+  if (score >= 90) return "pass";
+  if (score >= 50) return "warning";
+  return "fail";
+}
 
+async function fetchPageSpeedInsights(url: string) {
+  const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&key=AIzaSyBWoi7GqNOw6gmS4W3K5T8mKf4WVq-UQYM&category=PERFORMANCE&category=ACCESSIBILITY&category=BEST_PRACTICES&category=SEO&strategy=DESKTOP`;
+  
+  try {
+    const response = await fetch(apiUrl);
+    if (!response.ok) {
+      throw new Error(`PageSpeed API error: ${response.status}`);
+    }
+    const data = await response.json();
+    
+    const lighthouse = data.lighthouseResult || {};
+    const categories = lighthouse.categories || {};
+    
+    return {
+      performance: Math.round((categories.performance?.score || 0) * 100),
+      accessibility: Math.round((categories.accessibility?.score || 0) * 100),
+      bestPractices: Math.round((categories['best-practices']?.score || 0) * 100),
+      seo: Math.round((categories.seo?.score || 0) * 100),
+    };
+  } catch (error) {
+    console.error("PageSpeed Insights error:", error);
+    return null;
+  }
+}
+
+async function fetchHTMLContent(url: string) {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; SEO-Scout/1.0)',
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch: ${response.status}`);
+    }
+    const html = await response.text();
+    return html;
+  } catch (error) {
+    console.error("HTML fetch error:", error);
+    return null;
+  }
+}
+
+function analyzeHTML(html: string | null, url: string, pageSpeed: { performance: number; accessibility: number; bestPractices: number; seo: number } | null): SEOResult {
+  const isHttps = url.startsWith("https");
+  
+  let titleTag = null;
+  let metaDescription = null;
+  let hasViewport = false;
+  let h1Count = 0;
+  let h1Text = "";
+  let hasCanonical = false;
+  let ogTags = { title: false, description: false, image: false };
+  let imagesWithoutAlt = 0;
+  let totalImages = 0;
+  let hasRobotsTxt = false;
+  let hasSitemap = false;
+  let hasSchema = false;
+  
+  if (html) {
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    titleTag = titleMatch ? titleMatch[1].trim() : null;
+    
+    const metaDescMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i);
+    metaDescription = metaDescMatch ? metaDescMatch[1].trim() : null;
+    
+    hasViewport = /<meta[^>]*name=["']viewport["']/i.test(html);
+    
+    const h1Matches = html.match(/<h1[^>]*>([^<]+)<\/h1>/gi);
+    h1Count = h1Matches ? h1Matches.length : 0;
+    if (h1Matches && h1Matches[0]) {
+      h1Text = h1Matches[0].replace(/<[^>]+>/g, "").trim();
+    }
+    
+    hasCanonical = /<link[^>]*rel=["']canonical["']/i.test(html);
+    
+    ogTags.title = /<meta[^>]*property=["']og:title["']/i.test(html);
+    ogTags.description = /<meta[^>]*property=["']og:description["']/i.test(html);
+    ogTags.image = /<meta[^>]*property=["']og:image["']/i.test(html);
+    
+    const imgMatches = html.match(/<img[^>]*>/gi) || [];
+    totalImages = imgMatches.length;
+    imagesWithoutAlt = imgMatches.filter(img => !/alt=["'][^"']+["']/i.test(img)).length;
+    
+    hasSchema = /<script[^>]*type=["']application\/ld\+json["']/i.test(html);
+  }
+  
+  const urlObj = new URL(url);
+  const domain = urlObj.hostname;
+  
+  fetch(`https://${domain}/robots.txt`).then(r => { if (r.ok) hasRobotsTxt = true; }).catch(() => {});
+  fetch(`https://${domain}/sitemap.xml`).then(r => { if (r.ok) hasSitemap = true; }).catch(() => {});
+  
+  const performanceScore = pageSpeed?.performance || 65;
+  const seoScore = pageSpeed?.seo || 70;
+  const accessibilityScore = pageSpeed?.accessibility || 75;
+  const bestPracticesScore = pageSpeed?.bestPractices || 80;
+  
   const categories: SEOCategory[] = [
     {
       name: "Performance",
       icon: "⚡",
-      score: Math.floor(Math.random() * 30) + 60,
+      score: performanceScore,
       checks: [
         {
           name: "Page load speed",
-          status: Math.random() > 0.3 ? "pass" : "warning",
-          ...actionPlans["Page load speed"]
+          status: getStatusFromScore(performanceScore),
+          ...(performanceScore < 90 ? actionPlans["Page load speed"] : {})
         },
         {
-          name: "Render-blocking resources",
-          status: Math.random() > 0.5 ? "pass" : "warning",
-          ...actionPlans["Render-blocking resources"]
+          name: "Largest Contentful Paint",
+          status: performanceScore >= 90 ? "pass" : performanceScore >= 50 ? "warning" : "fail",
+          recommendation: performanceScore < 90 ? "Optimize images and reduce server response time" : undefined
         },
         {
-          name: "Server response time",
-          status: Math.random() > 0.4 ? "pass" : "warning",
-          ...actionPlans["Server response time"]
+          name: "Cumulative Layout Shift",
+          status: performanceScore >= 80 ? "pass" : "warning",
+          recommendation: performanceScore < 80 ? "Add width and height attributes to images" : undefined
         },
         {
-          name: "Browser caching",
-          status: Math.random() > 0.6 ? "pass" : "warning",
-          ...actionPlans["Browser caching"]
+          name: "First Input Delay",
+          status: performanceScore >= 85 ? "pass" : "warning",
+          recommendation: performanceScore < 85 ? "Reduce JavaScript execution time" : undefined
         }
       ]
     },
     {
-      name: "Meta Tags",
-      icon: "🏷️",
-      score: Math.floor(Math.random() * 40) + 50,
+      name: "SEO",
+      icon: "🔍",
+      score: seoScore,
       checks: [
         {
           name: "Title tag",
-          status: "pass"
+          status: titleTag ? "pass" : "fail",
+          recommendation: titleTag ? undefined : "Add a title tag to your page"
         },
         {
           name: "Meta description",
-          status: Math.random() > 0.3 ? "pass" : "warning",
-          ...actionPlans["Meta description"]
+          status: metaDescription ? "pass" : "warning",
+          recommendation: metaDescription ? undefined : actionPlans["Meta description"].recommendation
         },
         {
-          name: "Open Graph tags",
-          status: Math.random() > 0.5 ? "pass" : "warning",
-          ...actionPlans["Open Graph tags"]
+          name: "H1 tag",
+          status: h1Count === 1 ? "pass" : h1Count === 0 ? "fail" : "warning",
+          recommendation: h1Count === 0 ? "Add an H1 heading to your page" : h1Count > 1 ? "Use only one H1 tag per page" : undefined
         },
         {
           name: "Canonical tag",
-          status: Math.random() > 0.4 ? "pass" : "warning",
-          ...actionPlans["Canonical tag"]
-        }
-      ]
-    },
-    {
-      name: "Headings",
-      icon: "📑",
-      score: Math.floor(Math.random() * 35) + 55,
-      checks: [
-        {
-          name: "H1 tag present",
-          status: "pass"
+          status: hasCanonical ? "pass" : "warning",
+          ...(hasCanonical ? {} : actionPlans["Canonical tag"])
         },
-        {
-          name: "Single H1 per page",
-          status: "pass"
-        },
-        {
-          name: "Heading hierarchy",
-          status: Math.random() > 0.4 ? "pass" : "warning",
-          ...actionPlans["Heading hierarchy"]
-        },
-        {
-          name: "Descriptive headings",
-          status: Math.random() > 0.3 ? "pass" : "warning",
-          ...actionPlans["Descriptive headings"]
-        }
-      ]
-    },
-    {
-      name: "Images",
-      icon: "🖼️",
-      score: Math.floor(Math.random() * 45) + 45,
-      checks: [
-        {
-          name: "Alt text on images",
-          status: Math.random() > 0.4 ? "pass" : "warning",
-          ...actionPlans["Alt text on images"]
-        },
-        {
-          name: "Image file sizes",
-          status: Math.random() > 0.5 ? "pass" : "warning",
-          ...actionPlans["Image file sizes"]
-        },
-        {
-          name: "Lazy loading",
-          status: Math.random() > 0.3 ? "pass" : "warning",
-          ...actionPlans["Lazy loading"]
-        },
-        {
-          name: "Image dimensions",
-          status: Math.random() > 0.6 ? "pass" : "fail",
-          ...actionPlans["Image dimensions"]
-        }
-      ]
-    },
-    {
-      name: "Links",
-      icon: "🔗",
-      score: Math.floor(Math.random() * 30) + 60,
-      checks: [
-        {
-          name: "Internal links",
-          status: "pass"
-        },
-        {
-          name: "External links",
-          status: Math.random() > 0.5 ? "pass" : "warning",
-          ...actionPlans["External links"]
-        },
-        {
-          name: "Anchor text quality",
-          status: Math.random() > 0.4 ? "pass" : "warning",
-          ...actionPlans["Anchor text quality"]
-        },
-        {
-          name: "Broken links",
-          status: Math.random() > 0.7 ? "pass" : "fail",
-          ...actionPlans["Broken links"]
-        }
-      ]
-    },
-    {
-      name: "Technical",
-      icon: "⚙️",
-      score: Math.floor(Math.random() * 40) + 50,
-      checks: [
         {
           name: "Robots.txt",
-          status: Math.random() > 0.4 ? "pass" : "warning",
-          ...actionPlans["Robots.txt"]
+          status: "warning",
+          recommendation: "Check if robots.txt exists"
         },
         {
           name: "XML Sitemap",
-          status: Math.random() > 0.5 ? "pass" : "warning",
-          ...actionPlans["XML Sitemap"]
-        },
-        {
-          name: "SSL/HTTPS",
-          status: url.startsWith("https") ? "pass" : "fail",
-          ...actionPlans["SSL/HTTPS"]
-        },
-        {
-          name: "Schema markup",
-          status: Math.random() > 0.6 ? "pass" : "warning",
-          ...actionPlans["Schema markup"]
-        }
-      ]
-    },
-    {
-      name: "Content",
-      icon: "📝",
-      score: Math.floor(Math.random() * 35) + 55,
-      checks: [
-        {
-          name: "Content length",
-          status: Math.random() > 0.3 ? "pass" : "warning",
-          ...actionPlans["Content length"]
-        },
-        {
-          name: "Keyword usage",
-          status: "pass"
-        },
-        {
-          name: "Readability",
-          status: Math.random() > 0.4 ? "pass" : "warning",
-          ...actionPlans["Readability"]
-        },
-        {
-          name: "Unique content",
-          status: "pass"
+          status: "warning",
+          recommendation: "Submit a sitemap to search engines"
         }
       ]
     },
     {
       name: "Mobile",
       icon: "📱",
-      score: Math.floor(Math.random() * 30) + 60,
+      score: accessibilityScore,
       checks: [
         {
           name: "Viewport meta tag",
-          status: "pass"
+          status: hasViewport ? "pass" : "fail",
+          recommendation: hasViewport ? undefined : "Add <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
         },
         {
-          name: "Mobile-friendly design",
-          status: Math.random() > 0.3 ? "pass" : "warning",
-          ...actionPlans["Mobile-friendly design"]
+          name: "Mobile-friendly",
+          status: accessibilityScore >= 80 ? "pass" : "warning",
+          recommendation: accessibilityScore < 80 ? "Ensure your site is responsive" : undefined
         },
         {
-          name: "Touch-friendly targets",
-          status: Math.random() > 0.5 ? "pass" : "warning",
-          ...actionPlans["Touch-friendly targets"]
+          name: "Tap targets size",
+          status: accessibilityScore >= 70 ? "pass" : "warning",
+          ...(accessibilityScore < 70 ? actionPlans["Touch-friendly targets"] : {})
         },
         {
           name: "Font size",
-          status: Math.random() > 0.4 ? "pass" : "warning",
-          ...actionPlans["Font size"]
+          status: accessibilityScore >= 75 ? "pass" : "warning",
+          ...(accessibilityScore < 75 ? actionPlans["Font size"] : {})
+        }
+      ]
+    },
+    {
+      name: "Security & Best Practices",
+      icon: "🛡️",
+      score: bestPracticesScore,
+      checks: [
+        {
+          name: "HTTPS",
+          status: isHttps ? "pass" : "fail",
+          ...(isHttps ? {} : actionPlans["SSL/HTTPS"])
+        },
+        {
+          name: "Schema markup",
+          status: hasSchema ? "pass" : "warning",
+          ...(hasSchema ? {} : actionPlans["Schema markup"])
+        },
+        {
+          name: "Image alt text",
+          status: imagesWithoutAlt === 0 ? "pass" : "warning",
+          recommendation: imagesWithoutAlt > 0 ? `Add alt text to ${imagesWithoutAlt} images` : undefined,
+          ...(imagesWithoutAlt > 0 ? actionPlans["Alt text on images"] : {})
+        }
+      ]
+    },
+    {
+      name: "Social Tags",
+      icon: "📣",
+      score: ogTags.title && ogTags.description && ogTags.image ? 100 : ogTags.title && ogTags.description ? 75 : 50,
+      checks: [
+        {
+          name: "Open Graph title",
+          status: ogTags.title ? "pass" : "warning",
+          ...(ogTags.title ? {} : actionPlans["Open Graph tags"])
+        },
+        {
+          name: "Open Graph description",
+          status: ogTags.description ? "pass" : "warning",
+          ...(ogTags.description ? {} : actionPlans["Open Graph tags"])
+        },
+        {
+          name: "Open Graph image",
+          status: ogTags.image ? "pass" : "warning",
+          ...(ogTags.image ? {} : actionPlans["Open Graph tags"])
         }
       ]
     }
@@ -497,20 +531,25 @@ function generateSEOChecks(url: string): SEOResult {
   return {
     url,
     overallScore,
-    categories
+    categories,
+    pageSpeed: pageSpeed || undefined
   };
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { url } = body;
+    let { url } = body;
 
     if (!url) {
       return NextResponse.json(
         { error: "URL is required" },
         { status: 400 }
       );
+    }
+
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url;
     }
 
     try {
@@ -522,12 +561,16 @@ export async function POST(request: Request) {
       );
     }
 
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    const [pageSpeed, html] = await Promise.all([
+      fetchPageSpeedInsights(url).catch(() => null),
+      fetchHTMLContent(url).catch(() => null)
+    ]);
 
-    const result = generateSEOChecks(url);
+    const result = analyzeHTML(html, url, pageSpeed);
 
     return NextResponse.json(result);
   } catch (error) {
+    console.error("Analysis error:", error);
     return NextResponse.json(
       { error: "Failed to analyze website" },
       { status: 500 }
