@@ -580,15 +580,19 @@ export async function POST(request: Request) {
     const desktopResult = analyzeHTML(html, url, desktop, mobile, "desktop");
     const mobileResult = analyzeHTML(html, url, desktop, mobile, "mobile");
 
-    const overallScoreDesktop = desktopResult.overallScore;
-    const overallScoreMobile = mobileResult.overallScore;
-    const overallScore = Math.floor((overallScoreDesktop + overallScoreMobile) / 2);
+    const desktopScore = desktop 
+      ? Math.round((desktop.performance + desktop.accessibility + desktop.bestPractices + desktop.seo) / 4)
+      : 65;
+    const mobileScore = mobile 
+      ? Math.round((mobile.performance + mobile.accessibility + mobile.bestPractices + mobile.seo) / 4)
+      : 65;
+    const overallScore = Math.round((desktopScore + mobileScore) / 2);
 
     return NextResponse.json({
       url,
       overallScore,
-      overallScoreDesktop,
-      overallScoreMobile,
+      overallScoreDesktop: desktopScore,
+      overallScoreMobile: mobileScore,
       categories: desktopResult.categories,
       categoriesDesktop: desktopResult.categories,
       categoriesMobile: mobileResult.categories,
