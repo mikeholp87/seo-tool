@@ -6,6 +6,7 @@ interface SEOCheck {
   name: string;
   status: "pass" | "warning" | "fail";
   recommendation?: string;
+  steps?: string[];
 }
 
 interface SEOCategory {
@@ -72,6 +73,7 @@ function CheckItem({ check, index }: { check: SEOCheck; index: number }) {
   };
   
   const config = statusConfig[check.status];
+  const showSteps = check.status !== "pass" && check.steps && check.steps.length > 0;
 
   return (
     <div 
@@ -79,7 +81,7 @@ function CheckItem({ check, index }: { check: SEOCheck; index: number }) {
       style={{ animationDelay: `${index * 50}ms` }}
     >
       <div 
-        className="w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+        className="w-6 h-6 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5"
         style={{ backgroundColor: config.bg, color: config.color }}
       >
         {config.icon}
@@ -88,6 +90,18 @@ function CheckItem({ check, index }: { check: SEOCheck; index: number }) {
         <p className="text-sm text-[#F4F4F5]">{check.name}</p>
         {check.recommendation && (
           <p className="text-xs text-[#A1A1AA] mt-1">{check.recommendation}</p>
+        )}
+        {showSteps && (
+          <div className="mt-3 p-3 bg-[#0A0A0F] rounded-lg border border-[#27272A]">
+            <p className="text-xs font-medium text-[#22D3EE] mb-2">How to fix:</p>
+            <ul className="space-y-1">
+              {check.steps?.map((step, idx) => (
+                <li key={idx} className="text-xs text-[#A1A1AA] leading-relaxed">
+                  {step}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </div>
     </div>
@@ -133,7 +147,7 @@ function CategoryCard({ category, index, isExpanded, onToggle }: {
       </button>
       <div 
         className="overflow-hidden transition-all duration-300"
-        style={{ maxHeight: isExpanded ? "500px" : "0", opacity: isExpanded ? 1 : 0 }}
+        style={{ maxHeight: isExpanded ? "2000px" : "0", opacity: isExpanded ? 1 : 0 }}
       >
         <div className="px-5 pb-5">
           {category.checks.map((check, idx) => (
